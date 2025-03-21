@@ -41,7 +41,7 @@ def initialize_bybit_client():
     """Initialize Bybit client with retries."""
     global session
     max_retries = 3
-    retry_delay = 5  # seconds
+    retry_delay = 10  # seconds
     
     for attempt in range(max_retries):
         try:
@@ -54,13 +54,16 @@ def initialize_bybit_client():
                 testnet=False,
                 api_key=BYBIT_API_KEY,
                 api_secret=BYBIT_API_SECRET,
-                recv_window=20000
+                recv_window=60000  # увеличиваем окно приема
             )
             
-            # Проверяем подключение
+            # Добавляем задержку перед тестовым запросом
+            time.sleep(2)
+            
+            # Проверяем подключение с минимальным запросом
             test_response = session.get_instruments_info(
                 category="spot",
-                symbol="BTCUSDT"
+                symbol="BTCUSDT"  # используем только один символ для теста
             )
             
             if test_response['retCode'] == 0:
@@ -72,8 +75,9 @@ def initialize_bybit_client():
         except Exception as e:
             logger.error(f"Error initializing ByBit client (attempt {attempt + 1}): {str(e)}")
             if attempt < max_retries - 1:
-                logger.info(f"Retrying in {retry_delay} seconds...")
+                logger.info(f"Waiting {retry_delay} seconds before next attempt...")
                 time.sleep(retry_delay)
+                retry_delay *= 2  # увеличиваем задержку экспоненциально
             continue
             
     logger.error("Failed to initialize ByBit client after all retries")
@@ -103,11 +107,10 @@ def get_user_settings(user_id: int) -> dict:
     return user_settings.get(user_id, DEFAULT_SETTINGS.copy())
 
 async def get_all_symbols():
-    """Get all valid symbols from Bybit SPOT market."""
+    """Get all valid symbols from Bybit SPOT market with rate limit handling."""
     try:
         global session
         
-        # Проверяем инициализацию сессии
         if session is None:
             logger.error("Bybit session is not initialized, attempting to reinitialize...")
             if not initialize_bybit_client():
@@ -116,16 +119,32 @@ async def get_all_symbols():
         
         logger.info("Requesting SPOT instruments info...")
         try:
+            # Добавляем задержку перед запросом
+            await asyncio.sleep(1)
+            
             spot_response = session.get_instruments_info(
                 category="spot"
             )
-        except Exception as api_error:
-            logger.error(f"Error calling Bybit API: {str(api_error)}")
-            # Пробуем переинициализировать сессию
-            if initialize_bybit_client():
+            
+            # Если получаем ошибку о превышении лимита, ждем и пробуем снова
+            if spot_response.get('retCode') == 403:
+                logger.warning("Rate limit hit, waiting 10 seconds...")
+                await asyncio.sleep(10)
                 spot_response = session.get_instruments_info(
                     category="spot"
                 )
+                
+        except Exception as api_error:
+            logger.error(f"Error calling Bybit API: {str(api_error)}")
+            if "rate limit" in str(api_error).lower():
+                logger.info("Rate limit error, waiting 10 seconds...")
+                await asyncio.sleep(10)
+                if initialize_bybit_client():
+                    spot_response = session.get_instruments_info(
+                        category="spot"
+                    )
+                else:
+                    return []
             else:
                 return []
         
