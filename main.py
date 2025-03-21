@@ -37,37 +37,47 @@ if not BYBIT_API_KEY or not BYBIT_API_SECRET:
     logger.warning("ByBit API credentials not found in .env file. Some features may be limited.")
 
 # Initialize ByBit client
-try:
-    logger.info("Initializing ByBit client...")
-    session = HTTP(
-        testnet=False,
-        api_key=BYBIT_API_KEY,
-        api_secret=BYBIT_API_SECRET,
-        recv_window=20000  # Увеличиваем окно приема
-    )
+def initialize_bybit_client():
+    """Initialize Bybit client with retries."""
+    global session
+    max_retries = 3
+    retry_delay = 5  # seconds
     
-    # Проверяем подключение
-    test_response = session.get_instruments_info(category="spot", symbol="BTCUSDT")
-    if test_response['retCode'] == 0:
-        logger.info("ByBit client initialized and tested successfully")
-    else:
-        logger.error(f"ByBit client test failed: {test_response['retMsg']}")
-        
-    # Добавьте этот код после инициализации сессии для проверки
-    try:
-        test_symbol = "BTCUSDT"
-        logger.info(f"Testing API with {test_symbol}...")
-        test_response = session.get_instruments_info(
-            category="spot",
-            symbol=test_symbol
-        )
-        logger.info(f"Test response for {test_symbol}: {test_response}")
-    except Exception as e:
-        logger.error(f"Error testing API: {str(e)}")
-        
-except Exception as e:
-    logger.error(f"Error initializing ByBit client: {str(e)}")
-    session = None
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"Attempting to initialize ByBit client (attempt {attempt + 1}/{max_retries})...")
+            
+            if not BYBIT_API_KEY or not BYBIT_API_SECRET:
+                raise ValueError("ByBit API credentials not found in .env file")
+                
+            session = HTTP(
+                testnet=False,
+                api_key=BYBIT_API_KEY,
+                api_secret=BYBIT_API_SECRET,
+                recv_window=20000
+            )
+            
+            # Проверяем подключение
+            test_response = session.get_instruments_info(
+                category="spot",
+                symbol="BTCUSDT"
+            )
+            
+            if test_response['retCode'] == 0:
+                logger.info("ByBit client initialized and tested successfully")
+                return True
+            else:
+                logger.error(f"ByBit client test failed: {test_response['retMsg']}")
+                
+        except Exception as e:
+            logger.error(f"Error initializing ByBit client (attempt {attempt + 1}): {str(e)}")
+            if attempt < max_retries - 1:
+                logger.info(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            continue
+            
+    logger.error("Failed to initialize ByBit client after all retries")
+    return False
 
 # Constants for analysis
 DEFAULT_SETTINGS = {
@@ -95,15 +105,32 @@ def get_user_settings(user_id: int) -> dict:
 async def get_all_symbols():
     """Get all valid symbols from Bybit SPOT market."""
     try:
-        # Получаем информацию для SPOT рынка
+        global session
+        
+        # Проверяем инициализацию сессии
+        if session is None:
+            logger.error("Bybit session is not initialized, attempting to reinitialize...")
+            if not initialize_bybit_client():
+                logger.error("Failed to reinitialize Bybit client")
+                return []
+        
         logger.info("Requesting SPOT instruments info...")
-        spot_response = session.get_instruments_info(
-            category="spot"
-        )
+        try:
+            spot_response = session.get_instruments_info(
+                category="spot"
+            )
+        except Exception as api_error:
+            logger.error(f"Error calling Bybit API: {str(api_error)}")
+            # Пробуем переинициализировать сессию
+            if initialize_bybit_client():
+                spot_response = session.get_instruments_info(
+                    category="spot"
+                )
+            else:
+                return []
         
         valid_symbols = []
         
-        # Проверяем структуру ответа
         if spot_response.get('retCode') == 0:
             spot_list = spot_response.get('result', {}).get('list', [])
             
@@ -112,7 +139,7 @@ async def get_all_symbols():
                     symbol = item.get('symbol', '')
                     if symbol.endswith('USDT'):
                         valid_symbols.append(symbol)
-            
+                        
             logger.info(f"Found {len(valid_symbols)} SPOT USDT symbols")
             if valid_symbols:
                 logger.info(f"Sample symbols: {valid_symbols[:5]}")
@@ -1099,6 +1126,11 @@ def run_bot():
     """Run the bot."""
     try:
         logger.info("Initializing bot application...")
+        
+        # Инициализируем Bybit клиент перед запуском бота
+        if not initialize_bybit_client():
+            logger.error("Failed to initialize Bybit client. Bot will start with limited functionality.")
+        
         application = Application.builder().token(TELEGRAM_TOKEN).build()
         
         # Set up bot commands menu
