@@ -17,6 +17,7 @@ jobs:
         with:
           name: cloudflare-url
           path: cloudflare_domain.txt
+          if-no-files-found: warn  
         
       - name: Set up Python
         uses: actions/setup-python@v3
