@@ -42,13 +42,7 @@ jobs:
           sleep 5
           cat cloudflare_url.txt | grep -o 'https://[-a-z0-9]*\.cfargotunnel\.com' | tee cloudflare_domain.txt
 
-      - name: Store Cloudflare URL as Artifact
-        uses: actions/upload-artifact@v2
-        with:
-          name: cloudflare-url
-          path: cloudflare_domain.txt
-
-      
+     
       - name: Run script
         run: python main.py  # Change to your script name
 
