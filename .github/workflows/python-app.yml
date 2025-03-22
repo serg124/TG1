@@ -15,15 +15,9 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Download Upload-Artifact Action
-        run: gh extension install actions/upload-artifact
-
-      - name: Store Cloudflare URL as Artifact
-        uses: actions/upload-artifact@v3 
-        with:
-          name: cloudflare-url
-          path: cloudflare_domain.txt
-          if-no-files-found: warn  
+      - name: Clone GitHub Actions Repository
+        run: |
+          git clone --depth=1 https://github.com/actions/upload-artifact.git ~/actions/upload-artifact
         
       - name: Set up Python
         uses: actions/setup-python@v3
