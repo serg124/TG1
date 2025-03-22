@@ -35,12 +35,12 @@ jobs:
 
       - name: Start Cloudflare Tunnel (Generate Free Domain)
         run: |
-          ./cloudflared tunnel --url http://localhost:8080 --no-autoupdate > cloudflare_url.txt 2>&1 &
+          ./cloudflared tunnel --url http://sj-help.com --no-autoupdate > cloudflare_url.txt 2>&1 &
 
       - name: Extract Cloudflare Public URL
         run: |
           sleep 5
-          cat cloudflare_url.txt | grep -o 'https://[-a-z0-9]*\.cfargotunnel\.com' | tee cloudflare_domain.txt
+          cat cloudflare_url.txt | grep -o 'https://fragbaws_telegram_bot.cfargotunnel.com' | tee cloudflare_domain.txt
 
      
       - name: Run script
