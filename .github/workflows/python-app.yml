@@ -12,8 +12,11 @@ jobs:
   run-script:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+      - name: Store Cloudflare URL as Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: cloudflare-url
+          path: cloudflare_domain.txt
         
       - name: Set up Python
         uses: actions/setup-python@v3
