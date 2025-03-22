@@ -24,7 +24,28 @@ jobs:
         run: |
           pip install -r requirements.txt || true
 
+      - name: Install Cloudflare Tunnel
+        run: |
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          chmod +x cloudflared
+
+      - name: Start Cloudflare Tunnel (Generate Free Domain)
+        run: |
+          ./cloudflared tunnel --url http://localhost:8080 --no-autoupdate > cloudflare_url.txt 2>&1 &
+
+      - name: Extract Cloudflare Public URL
+        run: |
+          sleep 5
+          cat cloudflare_url.txt | grep -o 'https://[-a-z0-9]*\.cfargotunnel\.com' | tee cloudflare_domain.txt
+
+      - name: Store Cloudflare URL as Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: cloudflare-url
+          path: cloudflare_domain.txt
+
+      
       - name: Run script
-        run: python main1.py  # Change to your script name
+        run: python main.py  # Change to your script name
 
 
