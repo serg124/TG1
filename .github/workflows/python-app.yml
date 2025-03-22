@@ -12,12 +12,19 @@ jobs:
   run-script:
     runs-on: ubuntu-20.04
     steps:
+      - name: Install OpenVPN
+        run: sudo apt-get install -y openvpn
+
+      - name: Set up VPN
+        run: |
+          echo "${{ secrets.VPN_CONFIG }}" > vpn-config.ovpn
+          sudo openvpn --config vpn-config.ovpn &
+
+    
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Clone GitHub Actions Repository
-        run: |
-          git clone --depth=1 https://github.com/actions/upload-artifact.git ~/actions/upload-artifact
+      
         
       - name: Set up Python
         uses: actions/setup-python@v3
@@ -28,19 +35,7 @@ jobs:
         run: |
           pip install -r requirements.txt || true
 
-      - name: Install Cloudflare Tunnel
-        run: |
-          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
-          chmod +x cloudflared
-
-      - name: Start Cloudflare Tunnel (Generate Free Domain)
-        run: |
-          ./cloudflared tunnel --url http://sj-help.com --no-autoupdate > cloudflare_url.txt 2>&1 &
-
-      - name: Extract Cloudflare Public URL
-        run: |
-          sleep 5
-          cat cloudflare_url.txt | grep -o 'https://fragbaws_telegram_bot.cfargotunnel.com' | tee cloudflare_domain.txt
+      
 
      
       - name: Run script
